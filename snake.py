@@ -3,14 +3,15 @@ import random
 import time
 
 
-WIDTH = 30
-HEIGHT = 18
+MAX_WIDTH = 30
+MAX_HEIGHT = 18
+MIN_WIDTH = 12
+MIN_HEIGHT = 8
 TICK_SECONDS = 0.11
 
 SNAKE_CHAR = "O"
 HEAD_CHAR = "@"
 FOOD_CHAR = "*"
-EMPTY_CHAR = " "
 
 DIRECTIONS = {
     curses.KEY_UP: (0, -1),
@@ -32,11 +33,22 @@ class SnakeGame:
     def __init__(self, screen):
         self.screen = screen
         self.best_score = 0
+        self.rows = 0
+        self.cols = 0
+        self.width = 0
+        self.height = 0
+        self.too_small = False
         self.reset()
 
     def reset(self):
-        start_x = WIDTH // 2
-        start_y = HEIGHT // 2
+        self.configure_board()
+        if self.too_small:
+            self.snake = []
+            self.food = (0, 0)
+            return
+
+        start_x = self.width // 2
+        start_y = self.height // 2
         self.snake = [(start_x, start_y), (start_x - 1, start_y), (start_x - 2, start_y)]
         self.direction = (1, 0)
         self.next_direction = (1, 0)
@@ -47,7 +59,7 @@ class SnakeGame:
 
     def create_food(self):
         while True:
-            food = (random.randint(0, WIDTH - 1), random.randint(0, HEIGHT - 1))
+            food = (random.randint(0, self.width - 1), random.randint(0, self.height - 1))
             if food not in self.snake:
                 return food
 
@@ -61,7 +73,9 @@ class SnakeGame:
         self.next_direction = new_direction
 
     def update(self):
-        if self.paused or self.game_over:
+        self.configure_board()
+
+        if self.too_small or self.paused or self.game_over:
             return
 
         self.direction = self.next_direction
@@ -85,10 +99,15 @@ class SnakeGame:
 
     def hits_wall(self, point):
         x, y = point
-        return x < 0 or y < 0 or x >= WIDTH or y >= HEIGHT
+        return x < 0 or y < 0 or x >= self.width or y >= self.height
 
     def draw(self):
         self.screen.erase()
+        if self.too_small:
+            self.draw_too_small_message()
+            self.screen.refresh()
+            return
+
         self.draw_header()
         self.draw_border()
         self.draw_food()
@@ -96,27 +115,65 @@ class SnakeGame:
         self.draw_footer()
         self.screen.refresh()
 
+    def configure_board(self):
+        rows, cols = self.screen.getmaxyx()
+        if rows == self.rows and cols == self.cols:
+            return
+
+        self.rows = rows
+        self.cols = cols
+        self.width = min(MAX_WIDTH, max(0, cols - 2))
+        self.height = min(MAX_HEIGHT, max(0, rows - 5))
+        self.too_small = self.width < MIN_WIDTH or self.height < MIN_HEIGHT
+
+        if not self.too_small and hasattr(self, "snake") and self.snake:
+            self.snake = [
+                (min(x, self.width - 1), min(y, self.height - 1)) for x, y in self.snake
+            ]
+            if self.food[0] >= self.width or self.food[1] >= self.height:
+                self.food = self.create_food()
+
+    def safe_addstr(self, y, x, text):
+        if y < 0 or x < 0 or y >= self.rows or x >= self.cols:
+            return
+
+        visible_text = text[: self.cols - x - 1]
+        if not visible_text:
+            return
+
+        try:
+            self.screen.addstr(y, x, visible_text)
+        except curses.error:
+            pass
+
+    def draw_too_small_message(self):
+        self.safe_addstr(0, 0, "Terminal is too small for Snake.")
+        self.safe_addstr(1, 0, "Make the Codespaces terminal bigger.")
+        self.safe_addstr(2, 0, f"Current: {self.cols}x{self.rows}")
+        self.safe_addstr(3, 0, f"Need at least: {MIN_WIDTH + 2}x{MIN_HEIGHT + 5}")
+        self.safe_addstr(5, 0, "Press Q to quit.")
+
     def draw_header(self):
-        self.screen.addstr(0, 0, f"Snake | Score: {self.score} | Best: {self.best_score}")
+        self.safe_addstr(0, 0, f"Snake | Score: {self.score} | Best: {self.best_score}")
 
     def draw_border(self):
-        top = "+" + "-" * WIDTH + "+"
-        self.screen.addstr(1, 0, top)
+        top = "+" + "-" * self.width + "+"
+        self.safe_addstr(1, 0, top)
 
-        for y in range(HEIGHT):
-            self.screen.addstr(y + 2, 0, "|")
-            self.screen.addstr(y + 2, WIDTH + 1, "|")
+        for y in range(self.height):
+            self.safe_addstr(y + 2, 0, "|")
+            self.safe_addstr(y + 2, self.width + 1, "|")
 
-        self.screen.addstr(HEIGHT + 2, 0, top)
+        self.safe_addstr(self.height + 2, 0, top)
 
     def draw_food(self):
         food_x, food_y = self.food
-        self.screen.addstr(food_y + 2, food_x + 1, FOOD_CHAR)
+        self.safe_addstr(food_y + 2, food_x + 1, FOOD_CHAR)
 
     def draw_snake(self):
         for index, (x, y) in enumerate(self.snake):
             char = HEAD_CHAR if index == 0 else SNAKE_CHAR
-            self.screen.addstr(y + 2, x + 1, char)
+            self.safe_addstr(y + 2, x + 1, char)
 
     def draw_footer(self):
         if self.game_over:
@@ -126,7 +183,7 @@ class SnakeGame:
         else:
             message = "Arrows/WASD: move | Space: pause | Q: quit"
 
-        self.screen.addstr(HEIGHT + 4, 0, message)
+        self.safe_addstr(self.height + 4, 0, message)
 
     def handle_key(self, key):
         if key in (ord("q"), ord("Q")):
@@ -149,7 +206,11 @@ class SnakeGame:
 
 
 def run(screen):
-    curses.curs_set(0)
+    try:
+        curses.curs_set(0)
+    except curses.error:
+        pass
+
     screen.nodelay(True)
     screen.keypad(True)
     screen.timeout(0)
