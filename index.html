@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Змейка</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="game-shell">
+      <section class="hud" aria-label="Панель игры">
+        <div>
+          <p class="label">Счет</p>
+          <p class="score" id="score">0</p>
+        </div>
+        <div>
+          <p class="label">Рекорд</p>
+          <p class="score" id="bestScore">0</p>
+        </div>
+        <button class="icon-button" id="pauseButton" type="button" aria-label="Пауза">
+          <span aria-hidden="true">II</span>
+        </button>
+        <button class="icon-button" id="restartButton" type="button" aria-label="Начать заново">
+          <span aria-hidden="true">↻</span>
+        </button>
+      </section>
+
+      <canvas id="gameBoard" width="480" height="480" aria-label="Игровое поле змейки"></canvas>
+
+      <section class="controls" aria-label="Управление">
+        <button class="control up" type="button" data-direction="up" aria-label="Вверх">▲</button>
+        <button class="control left" type="button" data-direction="left" aria-label="Влево">◀</button>
+        <button class="control down" type="button" data-direction="down" aria-label="Вниз">▼</button>
+        <button class="control right" type="button" data-direction="right" aria-label="Вправо">▶</button>
+      </section>
+
+      <p class="status" id="status">Стрелки или WASD двигают змейку. Пробел ставит игру на паузу.</p>
+    </main>
+
+    <script src="script.js"></script>
+  </body>
+</html>
